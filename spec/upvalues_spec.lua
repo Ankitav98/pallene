@@ -18,7 +18,6 @@ describe("Upvalues pass:", function()
         assert.equals(n_upvs + 1, #prog._upvalues)
         local f = prog[1]
         assert.equals(n_upvs + 1, f._upvalue_index)
-        assert.equals(0, #f._referenced_upvalues)
     end)
 
     it("function with globals", function()
@@ -34,8 +33,6 @@ describe("Upvalues pass:", function()
         assert.equals(n_upvs + 1, n._upvalue_index)
         local f = prog[2]
         assert.equals(n_upvs + 2, f._upvalue_index)
-        assert.equals(1, #f._referenced_upvalues)
-        assert.equals(n_upvs + 1, f._referenced_upvalues[1])
     end)
 
     it("calling a titan function", function()
@@ -51,10 +48,8 @@ describe("Upvalues pass:", function()
         assert.equals(n_upvs + 2, #prog._upvalues)
         local inc = prog[1]
         assert.equals(n_upvs + 1, inc._upvalue_index)
-        assert.equals(0, #inc._referenced_upvalues)
         local f = prog[2]
         assert.equals(n_upvs + 2, f._upvalue_index)
-        assert.equals(0, #f._referenced_upvalues)
     end)
 
     it("using a titan function as first-class value", function()
@@ -73,14 +68,10 @@ describe("Upvalues pass:", function()
         assert.equals(n_upvs + 3, #prog._upvalues)
         local inc = prog[1]
         assert.equals(n_upvs + 1, inc._upvalue_index)
-        assert.equals(0, #inc._referenced_upvalues)
         local atzero = prog[2]
         assert.equals(n_upvs + 2, atzero._upvalue_index)
-        assert.equals(0, #atzero._referenced_upvalues)
         local f = prog[3]
         assert.equals(n_upvs + 3, f._upvalue_index)
-        assert.equals(1, #f._referenced_upvalues)
-        assert.equals(n_upvs + 1, f._referenced_upvalues[1])
     end)
 
     it("gather literals", function()
@@ -97,7 +88,5 @@ describe("Upvalues pass:", function()
         assert.truthy(prog._upvalues[n_upvs + 2])
         assert.equals(lit, prog._upvalues[n_upvs + 2].lit)
         local f = prog[1]
-        assert.equals(1, #f._referenced_upvalues)
-        assert.equals(n_upvs + 2, f._referenced_upvalues[1])
     end)
 end)
