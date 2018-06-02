@@ -792,6 +792,21 @@ describe("Titan coder /", function()
             function make_gc(x: {integer}): Gc
                 return { x = x }
             end
+
+            record Big
+                f1: integer; f2: integer; f3: integer
+                f4: integer; f5: integer; f6: integer
+                f7: integer; f8: integer; f9: integer
+            end
+
+            function make_big(
+                    f1: integer, f2: integer, f3: integer,
+                    f4: integer, f5: integer, f6: integer,
+                    f7: integer, f8: integer, f9: integer): Big
+                return {f1 = f1, f2 = f2, f3 = f3,
+                        f4 = f4, f5 = f5, f6 = f6,
+                        f7 = f7, f8 = f8, f9 = f9}
+            end
         ]]))
 
         it("create records", function()
@@ -851,6 +866,62 @@ describe("Titan coder /", function()
                         nil, true))
             ]])
             pending("fix error message")
+        end)
+
+        it("implements __index and __newindex", function()
+            run_test([[
+                local a, b = {}, {}
+                local foo = test.make_foo(123, a)
+                -- x
+                assert(123 == foo.x)
+                foo.x = 10
+                assert(10 == foo.x)
+                -- y
+                assert(a == foo.y)
+                foo.y = b
+                assert(b == foo.y)
+            ]])
+        end)
+
+        it("checks if Lua tries to access an nonexistent field", function()
+            run_test([[
+                local msg = "attempt to access nonexistent field 'z'"
+                local foo = test.make_foo(123, {})
+                -- __index
+                local ok, err = pcall(function()
+                    local x = foo.z
+                end)
+                assert(not ok)
+                assert(string.find(err, msg, nil, true))
+                -- __newindex
+                local ok, err = pcall(function()
+                    foo.z = 10
+                end)
+                assert(not ok)
+                assert(string.find(err, msg, nil, true))
+            ]])
+        end)
+
+        it("checks the field type before assignment", function()
+            run_test([[
+                local foo = test.make_foo(123, {})
+                local ok, err = pcall(function()
+                    foo.x = {}
+                end)
+                assert(not ok)
+                assert(string.find(err,
+                    "wrong type for record field 'x'",
+                    nil, true))
+            ]])
+        end)
+
+        it("(__index) works for records with a lot of fields", function()
+            run_test([[
+                local big = test.make_big(1, 2, 3, 4, 5, 6, 7, 8, 9)
+                for i = 1, 9 do
+                    assert(i == big['f' .. i])
+                end
+            ]])
         end)
     end)
 

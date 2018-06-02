@@ -49,6 +49,7 @@ declare_type("T", {
 
 upvalues.internal_literals = {
     "__index",
+    "__newindex",
     "__metatable",
 }
 
