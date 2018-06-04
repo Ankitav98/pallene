@@ -194,177 +194,186 @@ end
 
 local grammar = re.compile([[
 
-    program         <-  SKIP*
-                        {| ( toplevelfunc
-                           / toplevelvar
-                           / toplevelrecord
-                           / import )* |} !.
+    program <- SKIP*
+            {| ( toplevelfunc
+               / toplevelvar
+               / toplevelrecord
+               / import )* |} !.
 
-    toplevelfunc    <- (P  localopt FUNCTION NAME^NameFunc
-                           LPAREN^LParPList paramlist RPAREN^RParPList
-                           rettypeopt block END^EndFunc)         -> ToplevelFunc
+    toplevelfunc
+            <- (P  localopt FUNCTION NAME^NameFunc
+                    LPAREN^LParPList paramlist RPAREN^RParPList
+                    rettypeopt block END^EndFunc) -> ToplevelFunc
 
-    toplevelvar     <- (P  LOCAL decl ASSIGN^AssignVar
-                           !IMPORT exp^ExpVarDec)                -> ToplevelVar
+    toplevelvar
+            <- (P  LOCAL decl ASSIGN^AssignVar !IMPORT exp^ExpVarDec)
+                    -> ToplevelVar
 
-    toplevelrecord  <- (P  RECORD NAME^NameRecord recordfields^FieldRecord
-                           END^EndRecord)                        -> ToplevelRecord
+    toplevelrecord
+            <- (P  RECORD NAME^NameRecord recordfields^FieldRecord
+                    END^EndRecord) -> ToplevelRecord
 
-    localopt        <- (LOCAL)?                                  -> boolopt
+    localopt
+            <- (LOCAL)? -> boolopt
 
-    import          <- (P  LOCAL NAME^NameImport ASSIGN^AssignImport
-                           IMPORT^ImportImport
-                          (LPAREN STRINGLIT^StringLParImport RPAREN^RParImport /
-                          STRINGLIT^StringImport))               -> ToplevelImport
+    import  <- (P  LOCAL NAME^NameImport ASSIGN^AssignImport IMPORT^ImportImport
+                    (LPAREN STRINGLIT^StringLParImport
+                            RPAREN^RParImport / STRINGLIT^StringImport))
+                    -> ToplevelImport
 
-    rettypeopt      <- (P  (COLON rettype^TypeFunc)?)            -> rettypeopt
+    rettypeopt
+            <- (P  (COLON rettype^TypeFunc)?) -> rettypeopt
 
-    paramlist       <- {| (param (COMMA param^DeclParList)*)? |} -- produces {Decl}
+    paramlist
+            <- {| (param (COMMA param^DeclParList)*)? |} -- produces {Decl}
 
-    param           <- (P  NAME COLON^ParamSemicolon
-                           type^TypeDecl)                        -> DeclDecl
+    param   <- (P  NAME COLON^ParamSemicolon type^TypeDecl) -> DeclDecl
 
-    decl            <- (P  NAME (COLON type^TypeDecl)? -> opt)   -> DeclDecl
+    decl    <- (P  NAME (COLON type^TypeDecl)? -> opt) -> DeclDecl
 
-    simpletype      <- (P  NIL)                                  -> TypeNil
-                     / (P  BOOLEAN)                              -> TypeBoolean
-                     / (P  INTEGER)                              -> TypeInteger
-                     / (P  FLOAT)                                -> TypeFloat
-                     / (P  STRING)                               -> TypeString
-                     / (P  VALUE)                                -> TypeValue
-                     / (P  NAME)                                 -> TypeName
-                     / (P  LCURLY type^TypeType
-                           RCURLY^RCurlyType)                    -> TypeArray
+    simpletype
+            <- (P  NIL)                                    -> TypeNil
+             / (P  BOOLEAN)                                -> TypeBoolean
+             / (P  INTEGER)                                -> TypeInteger
+             / (P  FLOAT)                                  -> TypeFloat
+             / (P  STRING)                                 -> TypeString
+             / (P  VALUE)                                  -> TypeValue
+             / (P  NAME)                                   -> TypeName
+             / (P  LCURLY type^TypeType RCURLY^RCurlyType) -> TypeArray
 
-    typelist        <- ( LPAREN
-                         {| (type (COMMA type^TypelistType)*)? |}
-                         RPAREN^RParenTypelist )                 -- produces {Type}
+    typelist
+            <- (LPAREN {| (type (COMMA type^TypelistType)*)? |}
+                    RPAREN^RParenTypelist) -- produces {Type}
 
-    rettype         <- {| (P  typelist RARROW
-                            rettype^TypeReturnTypes)             -> TypeFunction |}
-                     / {| (P  {| simpletype |} RARROW
-                             rettype^TypeReturnTypes)            -> TypeFunction |}
-                     / typelist
-                     / {| simpletype |}
+    rettype <- {| (P  typelist RARROW rettype^TypeReturnTypes)
+                    -> TypeFunction |}
+             / {| (P  {| simpletype |} RARROW rettype^TypeReturnTypes)
+                    -> TypeFunction |}
+             / typelist
+             / {| simpletype |}
 
-    type            <- (P  typelist RARROW
-                           rettype^TypeReturnTypes)              -> TypeFunction
-                     / (P  {| simpletype |} RARROW
-                           rettype^TypeReturnTypes)              -> TypeFunction
-                     / simpletype
+    type    <- (P  typelist RARROW rettype^TypeReturnTypes) -> TypeFunction
+             / (P  {| simpletype |} RARROW rettype^TypeReturnTypes)
+                    -> TypeFunction
+             / simpletype
 
-    recordfields    <- {| recordfield+ |}                        -- produces {Decl}
+    recordfields
+            <- {| recordfield+ |} -- produces {Decl}
 
-    recordfield     <- (P  NAME COLON^ColonRecordField
-                           type^TypeRecordField SEMICOLON?)      -> DeclDecl
+    recordfield
+            <- (P  NAME COLON^ColonRecordField type^TypeRecordField SEMICOLON?)
+                    -> DeclDecl
 
-    block           <- (P  {| statement* returnstat? |})         -> StatBlock
+    block   <- (P  {| statement* returnstat? |}) -> StatBlock
 
-    statement       <- (SEMICOLON)                               -- ignore
-                     / (DO block END^EndBlock)                   -- produces StatBlock
-                     / (P  WHILE exp^ExpWhile DO^DoWhile
-                                 block END^EndWhile)             -> StatWhile
-                     / (P  REPEAT block UNTIL^UntilRepeat
-                                      exp^ExpRepeat)             -> StatRepeat
-                     / (P  IF exp^ExpIf THEN^ThenIf block
-                           elseifstats elseopt END^EndIf)        -> ifstat
-                     / (P  FOR decl^DeclFor
-                           ASSIGN^AssignFor exp^Exp1For
-                           COMMA^CommaFor exp^Exp2For
-                           (COMMA exp^Exp3For)?                  -> opt
-                           DO^DoFor block END^EndFor)            -> StatFor
-                     / (P  LOCAL decl^DeclLocal ASSIGN^AssignLocal
-                                 exp^ExpLocal)                   -> StatDecl
-                     / (P  var ASSIGN^AssignAssign
-                               exp^ExpAssign)                    -> StatAssign
-                     / &(exp ASSIGN) %{AssignNotToVar}
-                     / (P  (suffixedexp => exp_is_call))         -> StatCall
-                     / &exp %{ExpStat}
+    statement
+            <- (SEMICOLON)                                -- ignore
+             / (DO block END^EndBlock)                    -- produces StatBlock
+             / (P  WHILE exp^ExpWhile DO^DoWhile block END^EndWhile)
+                                                          -> StatWhile
+             / (P  REPEAT block UNTIL^UntilRepeat exp^ExpRepeat)
+                                                          -> StatRepeat
+             / (P  IF exp^ExpIf THEN^ThenIf block elseifstats elseopt END^EndIf)
+                                                          -> ifstat
+             / (P  FOR decl^DeclFor ASSIGN^AssignFor exp^Exp1For COMMA^CommaFor
+                    exp^Exp2For (COMMA exp^Exp3For)? -> opt
+                    DO^DoFor block END^EndFor)            -> StatFor
+             / (P  LOCAL decl^DeclLocal ASSIGN^AssignLocal exp^ExpLocal)
+                                                          -> StatDecl
+             / (P  var ASSIGN^AssignAssign exp^ExpAssign) -> StatAssign
+             / &(exp ASSIGN) %{AssignNotToVar}
+             / (P  (suffixedexp => exp_is_call))          -> StatCall
+             / &exp %{ExpStat}
 
-    elseifstats     <- {| elseifstat* |}                         -- produces {Then}
+    elseifstats
+            <- {| elseifstat* |} -- produces {Then}
 
-    elseifstat      <- (P  ELSEIF exp^ExpElseIf
-                           THEN^ThenElseIf block)                -> ThenThen
+    elseifstat
+            <- (P  ELSEIF exp^ExpElseIf THEN^ThenElseIf block) -> ThenThen
 
-    elseopt         <- (ELSE block)?                             -> opt
+    elseopt <- (ELSE block)? -> opt
 
-    returnstat      <- (P  RETURN {| exp? |} SEMICOLON?)         -> StatReturn
+    returnstat
+            <- (P  RETURN {| exp? |} SEMICOLON?) -> StatReturn
 
-    op1             <- ( OR -> 'or' )
-    op2             <- ( AND -> 'and' )
-    op3             <- ( EQ -> '==' / NE -> '~=' / LT -> '<' /
-                         GT -> '>'  / LE -> '<=' / GE -> '>=' )
-    op4             <- ( BOR -> '|' )
-    op5             <- ( BXOR -> '~' )
-    op6             <- ( BAND -> '&' )
-    op7             <- ( SHL -> '<<' / SHR -> '>>' )
-    op8             <- ( CONCAT -> '..' )
-    op9             <- ( ADD -> '+' / SUB -> '-' )
-    op10            <- ( MUL -> '*' / MOD -> '%%' / DIV -> '/' / IDIV -> '//' )
-    unop            <- ( NOT -> 'not' / LEN -> '#' / NEG -> '-' / BNEG -> '~' )
-    op12            <- ( POW -> '^' )
+    op1     <- ( OR -> 'or' )
+    op2     <- ( AND -> 'and' )
+    op3     <- ( EQ -> '==' / NE -> '~=' / LT -> '<' /
+                 GT -> '>'  / LE -> '<=' / GE -> '>=' )
+    op4     <- ( BOR -> '|' )
+    op5     <- ( BXOR -> '~' )
+    op6     <- ( BAND -> '&' )
+    op7     <- ( SHL -> '<<' / SHR -> '>>' )
+    op8     <- ( CONCAT -> '..' )
+    op9     <- ( ADD -> '+' / SUB -> '-' )
+    op10    <- ( MUL -> '*' / MOD -> '%%' / DIV -> '/' / IDIV -> '//' )
+    unop    <- ( NOT -> 'not' / LEN -> '#' / NEG -> '-' / BNEG -> '~' )
+    op12    <- ( POW -> '^' )
 
-    exp             <- e1
-    e1              <- (P  {| e2  (op1  e2^OpExp)* |})           -> fold_binop_left
-    e2              <- (P  {| e3  (op2  e3^OpExp)* |})           -> fold_binop_left
-    e3              <- (P  {| e4  (op3  e4^OpExp)* |})           -> fold_binop_left
-    e4              <- (P  {| e5  (op4  e5^OpExp)* |})           -> fold_binop_left
-    e5              <- (P  {| e6  (op5  e6^OpExp)* |})           -> fold_binop_left
-    e6              <- (P  {| e7  (op6  e7^OpExp)* |})           -> fold_binop_left
-    e7              <- (P  {| e8  (op7  e8^OpExp)* |})           -> fold_binop_left
-    e8              <- (P     e9  (op8  e8^OpExp)?)              -> binop_concat
-    e9              <- (P  {| e10 (op9  e10^OpExp)* |})          -> fold_binop_left
-    e10             <- (P  {| e11 (op10 e11^OpExp)* |})          -> fold_binop_left
-    e11             <- (P  {| unop* |}  e12)                     -> fold_unops
-    e12             <- (P  castexp (op12 e11^OpExp)?)            -> binop_right
+    exp     <- e1
+    e1      <- (P  {| e2  (op1  e2^OpExp)* |})  -> fold_binop_left
+    e2      <- (P  {| e3  (op2  e3^OpExp)* |})  -> fold_binop_left
+    e3      <- (P  {| e4  (op3  e4^OpExp)* |})  -> fold_binop_left
+    e4      <- (P  {| e5  (op4  e5^OpExp)* |})  -> fold_binop_left
+    e5      <- (P  {| e6  (op5  e6^OpExp)* |})  -> fold_binop_left
+    e6      <- (P  {| e7  (op6  e7^OpExp)* |})  -> fold_binop_left
+    e7      <- (P  {| e8  (op7  e8^OpExp)* |})  -> fold_binop_left
+    e8      <- (P     e9  (op8  e8^OpExp)?)     -> binop_concat
+    e9      <- (P  {| e10 (op9  e10^OpExp)* |}) -> fold_binop_left
+    e10     <- (P  {| e11 (op10 e11^OpExp)* |}) -> fold_binop_left
+    e11     <- (P  {| unop* |}  e12)            -> fold_unops
+    e12     <- (P  castexp (op12 e11^OpExp)?)   -> binop_right
 
-    suffixedexp     <- (prefixexp {| expsuffix+ |})              -> fold_suffixes
+    suffixedexp
+            <- (prefixexp {| expsuffix+ |}) -> fold_suffixes
 
-    expsuffix       <- (P  funcargs)                             -> suffix_funccall
-                     / (P  COLON NAME^NameColonExpSuf
-                                 funcargs^FuncArgsExpSuf)        -> suffix_methodcall
-                     / (P  LBRACKET exp^ExpExpSuf
-                                RBRACKET^RBracketExpSuf)         -> suffix_bracket
-                     / (P  DOT NAME^NameDotExpSuf)               -> suffix_dot
+    expsuffix
+            <- (P  funcargs)                            -> suffix_funccall
+             / (P  COLON NAME^NameColonExpSuf funcargs^FuncArgsExpSuf)
+                                                        -> suffix_methodcall
+             / (P  LBRACKET exp^ExpExpSuf RBRACKET^RBracketExpSuf)
+                                                        -> suffix_bracket
+             / (P  DOT NAME^NameDotExpSuf)              -> suffix_dot
 
-    prefixexp       <- (P  NAME)                                 -> name_exp
-                     / (LPAREN exp^ExpSimpleExp
-                               RPAREN^RParSimpleExp)             -- produces Exp
+    prefixexp
+            <- (P  NAME)                                      -> name_exp
+             / (LPAREN exp^ExpSimpleExp RPAREN^RParSimpleExp) -- produces Exp
 
 
-    castexp         <- (P  simpleexp AS type^CastMissingType)    -> ExpCast
-                     / simpleexp                                 -- produces Exp
+    castexp <- (P  simpleexp AS type^CastMissingType) -> ExpCast
+               / simpleexp                            -- produces Exp
 
-    simpleexp       <- (P  NIL)                                  -> nil_exp
-                     / (P  FALSE -> tofalse)                     -> ExpBool
-                     / (P  TRUE -> totrue)                       -> ExpBool
-                     / (P  NUMBER)                               -> number_exp
-                     / (P  STRINGLIT)                            -> ExpString
-                     / initlist                                  -- produces Exp
-                     / suffixedexp                               -- produces Exp
-                     / prefixexp                                 -- produces Exp
+    simpleexp
+            <- (P  NIL)              -> nil_exp
+             / (P  FALSE -> tofalse) -> ExpBool
+             / (P  TRUE -> totrue)   -> ExpBool
+             / (P  NUMBER)           -> number_exp
+             / (P  STRINGLIT)        -> ExpString
+             / initlist              -- produces Exp
+             / suffixedexp           -- produces Exp
+             / prefixexp             -- produces Exp
 
-    var             <- (suffixedexp => exp_is_var)               -> exp2var
-                     / (P  NAME !expsuffix)                      -> name_exp -> exp2var
+    var     <- (suffixedexp => exp_is_var) -> exp2var
+             / (P  NAME !expsuffix)        -> name_exp -> exp2var
 
-    funcargs        <- (LPAREN explist RPAREN^RParFuncArgs)      -- produces {Exp}
-                     / {| initlist |}                            -- produces {Exp}
-                     / {| (P  STRINGLIT) -> ExpString |}         -- produces {Exp}
+    funcargs
+            <- (LPAREN explist RPAREN^RParFuncArgs) -- produces {Exp}
+             / {| initlist |}                       -- produces {Exp}
+             / {| (P  STRINGLIT) -> ExpString |}    -- produces {Exp}
 
-    explist         <- {| (exp (COMMA exp^ExpExpList)*)? |}      -- produces {Exp}
+    explist <- {| (exp (COMMA exp^ExpExpList)*)? |} -- produces {Exp}
 
-    initlist        <- (P  LCURLY {| fieldlist? |}
-                                  RCURLY^RCurlyInitList)         -> ExpInitlist
+    initlist
+            <- (P  LCURLY {| fieldlist? |} RCURLY^RCurlyInitList) -> ExpInitlist
 
-    fieldlist       <- (field
-                        (fieldsep
-                         (field /
-                          !RCURLY %{ExpFieldList}))*
-                        fieldsep?)                          -- produces Field...
+    fieldlist
+            <- (field (fieldsep (field / !RCURLY %{ExpFieldList}))* fieldsep?)
+                    -- produces Field...
 
-    field           <- (P  (NAME ASSIGN)? -> opt exp)       -> FieldField
+    field   <- (P  (NAME ASSIGN)? -> opt exp) -> FieldField
 
-    fieldsep        <- SEMICOLON / COMMA
+    fieldsep
+            <- SEMICOLON / COMMA
 
     --
     -- Get current position
