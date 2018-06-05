@@ -4,10 +4,14 @@ describe("Titan types", function()
 
     it("pretty-prints types", function()
         assert.same("{ integer }", types.tostring(types.T.Array(types.T.Integer())))
+        assert.same("{ x: float, y: float }", types.tostring(
+                types.T.LRecord({x = types.T.Float(), y = types.T.Float()})))
     end)
 
     it("checks if a type is garbage collected", function()
         assert.truthy(types.is_gc(types.T.String()))
+        assert.truthy(types.is_gc(types.T.Record({})))
+        assert.truthy(types.is_gc(types.T.LRecord({})))
         assert.truthy(types.is_gc(types.T.Array(types.T.Integer())))
         assert.truthy(types.is_gc(types.T.Function({}, {})))
     end)
@@ -54,6 +58,43 @@ describe("Titan types", function()
         assert.falsy(types.equals(f3, f2))
         assert.falsy(types.equals(f1, f3))
         assert.falsy(types.equals(f3, f1))
+    end)
+
+    it("compares two identical Lua records", function()
+        local r1 = types.T.LRecord({
+                x = types.T.Integer(), y = types.T.Integer()})
+        local r2 = types.T.LRecord({
+                x = types.T.Integer(), y = types.T.Integer()})
+        assert.truthy(types.equals(r1, r2))
+        assert.truthy(types.equals(r2, r1))
+    end)
+
+    it("compares records with different number of fields", function()
+        local r1 = types.T.LRecord({x = types.T.Integer()})
+        local r2 = types.T.LRecord({x = types.T.Integer(),
+                y = types.T.Integer()})
+        local r3 = types.T.LRecord({x = types.T.Integer(),
+                y = types.T.Integer(), z = types.T.Integer()})
+        assert.falsy(types.equals(r1, r2))
+        assert.falsy(types.equals(r2, r1))
+        assert.falsy(types.equals(r2, r3))
+        assert.falsy(types.equals(r3, r2))
+        assert.falsy(types.equals(r1, r3))
+        assert.falsy(types.equals(r3, r1))
+    end)
+
+    it("compares records with different field names", function()
+        local r1 = types.T.LRecord({x = types.T.Integer()})
+        local r2 = types.T.LRecord({y = types.T.Integer()})
+        assert.falsy(types.equals(r1, r2))
+        assert.falsy(types.equals(r2, r1))
+    end)
+
+    it("compares records with different field types", function()
+        local r1 = types.T.LRecord({x = types.T.Integer()})
+        local r2 = types.T.LRecord({x = types.T.Float()})
+        assert.falsy(types.equals(r1, r2))
+        assert.falsy(types.equals(r2, r1))
     end)
 
 end)
