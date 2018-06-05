@@ -1316,60 +1316,59 @@ describe("Titan type checker", function()
         assert.match("expected integer but found string", errs, nil, true)
     end)
 
-end)
+    describe("Pallene records", function()
+        it("typechecks record declarations", function()
+            assert_type_check([[
+                record Point
+                    x: float
+                    y: float
+                end
+            ]])
+        end)
 
-describe("Titan typecheck of records", function()
-    it("typechecks record declarations", function()
-        assert_type_check([[
-            record Point
-                x: float
-                y: float
-            end
-        ]])
-    end)
+        it("typechecks record as argument/return", function()
+            assert_type_check([[
+                record Point x: float; y:float end
 
-    it("typechecks record as argument/return", function()
-        assert_type_check([[
-            record Point x: float; y:float end
+                function f(p: Point): Point
+                    return p
+                end
+            ]])
+        end)
 
-            function f(p: Point): Point
-                return p
-            end
-        ]])
-    end)
+        local function wrap_record(code)
+            return [[
+                record Point x: float; y:float end
 
-    local function wrap_record(code)
-        return [[
-            record Point x: float; y:float end
-
-            function f(p: Point): float
-                ]].. code ..[[
-            end
-        ]]
-    end
-
-    it("typechecks record read/write", function()
-        assert_type_check(wrap_record[[
-            local x: float = 10.0
-            p.x = x
-            return p.y
-        ]])
-    end)
-
-    it("doesn't typecheck read/write to non existent fields", function()
-        local function assert_non_existent(code)
-            assert_type_error("field 'nope' not found in record 'Point'",
-                              wrap_record(code))
+                function f(p: Point): float
+                    ]].. code ..[[
+                end
+            ]]
         end
-        assert_non_existent([[ p.nope = 10 ]])
-        assert_non_existent([[ return p.nope ]])
-    end)
 
-    it("doesn't typecheck read/write with invalid types", function()
-        assert_type_error("expected float but found Point",
-                          wrap_record[[ p.x = p ]])
-        assert_type_error("expected Point but found float",
-                          wrap_record[[ local p: Point = p.x ]])
+        it("typechecks record read/write", function()
+            assert_type_check(wrap_record[[
+                local x: float = 10.0
+                p.x = x
+                return p.y
+            ]])
+        end)
+
+        it("doesn't typecheck read/write to non existent fields", function()
+            local function assert_non_existent(code)
+                assert_type_error("field 'nope' not found in record 'Point'",
+                                  wrap_record(code))
+            end
+            assert_non_existent([[ p.nope = 10 ]])
+            assert_non_existent([[ return p.nope ]])
+        end)
+
+        it("doesn't typecheck read/write with invalid types", function()
+            assert_type_error("expected float but found Point",
+                              wrap_record[[ p.x = p ]])
+            assert_type_error("expected Point but found float",
+                              wrap_record[[ local p: Point = p.x ]])
+        end)
     end)
 end)
 
