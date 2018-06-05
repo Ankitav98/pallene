@@ -7,15 +7,16 @@ local function declare_type(typename, cons)
 end
 
 declare_type("Type", {
-    Nil      = {"loc"},
-    Boolean  = {"loc"},
-    Integer  = {"loc"},
-    Float    = {"loc"},
-    String   = {"loc"},
-    Value    = {"loc"},
-    Name     = {"loc", "name"},
-    Array    = {"loc", "subtype"},
-    Function = {"loc", "argtypes", "rettypes"},
+    Nil       = {"loc"},
+    Boolean   = {"loc"},
+    Integer   = {"loc"},
+    Float     = {"loc"},
+    String    = {"loc"},
+    Value     = {"loc"},
+    Name      = {"loc", "name"},
+    Array     = {"loc", "subtype"},
+    Function  = {"loc", "argtypes", "rettypes"},
+    LuaRecord = {"loc", "field_decls"},
 })
 
 declare_type("Toplevel", {

@@ -232,14 +232,15 @@ local grammar = re.compile([[
     decl    <- (P  NAME (COLON type^TypeDecl)? -> opt) -> DeclDecl
 
     simpletype
-            <- (P  NIL)                                    -> TypeNil
-             / (P  BOOLEAN)                                -> TypeBoolean
-             / (P  INTEGER)                                -> TypeInteger
-             / (P  FLOAT)                                  -> TypeFloat
-             / (P  STRING)                                 -> TypeString
-             / (P  VALUE)                                  -> TypeValue
-             / (P  NAME)                                   -> TypeName
-             / (P  LCURLY type^TypeType RCURLY^RCurlyType) -> TypeArray
+            <- (P  NIL)                                      -> TypeNil
+             / (P  BOOLEAN)                                  -> TypeBoolean
+             / (P  INTEGER)                                  -> TypeInteger
+             / (P  FLOAT)                                    -> TypeFloat
+             / (P  STRING)                                   -> TypeString
+             / (P  VALUE)                                    -> TypeValue
+             / (P  NAME)                                     -> TypeName
+             / (P  LCURLY luarecordfields RCURLY^RCurlyType) -> TypeLuaRecord
+             / (P  LCURLY type^TypeType RCURLY^RCurlyType)   -> TypeArray
 
     typelist
             <- (LPAREN {| (type (COMMA type^TypelistType)*)? |}
@@ -256,6 +257,14 @@ local grammar = re.compile([[
              / (P  {| simpletype |} RARROW rettype^TypeReturnTypes)
                     -> TypeFunction
              / simpletype
+
+    luarecordfields
+            <- {| luarecordfield (fieldsep luarecordfield)* fieldsep? |}
+                    -- produces {Decl}
+
+    luarecordfield
+            <- (P  NAME COLON type^TypeRecordField )
+                    -> DeclDecl
 
     recordfields
             <- {| recordfield+ |} -- produces {Decl}
