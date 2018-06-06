@@ -130,6 +130,7 @@ local function ctype(typ)
     elseif tag == types.T.String   then return "TString *"
     elseif tag == types.T.Function then return "TValue"
     elseif tag == types.T.Array    then return "Table *"
+    elseif tag == types.T.LRecord  then return "Table *"
     elseif tag == types.T.Record   then return "Udata *"
     else error("impossible")
     end
@@ -276,6 +277,7 @@ local function get_slot(typ, src_slot_address)
     elseif tag == types.T.String   then tmpl = "tsvalue(${SRC})"
     elseif tag == types.T.Function then tmpl = "*(${SRC})"
     elseif tag == types.T.Array    then tmpl = "hvalue(${SRC})"
+    elseif tag == types.T.LRecord  then tmpl = "hvalue(${SRC})"
     elseif tag == types.T.Record   then tmpl = "uvalue(${SRC})"
     else error("impossible")
     end
@@ -296,6 +298,7 @@ local function set_slot_(typ, dst_slot_address, value)
     elseif tag == types.T.String   then tmpl = "setsvalue(L, ${DST}, ${SRC});"
     elseif tag == types.T.Function then tmpl = "setobj(L, ${DST}, &${SRC});"
     elseif tag == types.T.Array    then tmpl = "sethvalue(L, ${DST}, ${SRC});"
+    elseif tag == types.T.LRecord  then tmpl = "sethvalue(L, ${DST}, ${SRC});"
     elseif tag == types.T.Record   then tmpl = "setuvalue(L, ${DST}, ${SRC});"
     else error("impossible")
     end
@@ -588,6 +591,22 @@ local function table_set_new_field(tabl, lit, typ, cvalue, ctx)
     return out
 end
 
+local function table_getstr(tabl, lit, ctx)
+    local key_cstats, key = literal_get(lit, ctx)
+    local field = ctx:new_cvar("TValue *")
+    -- TODO: use something more efficient then luaH_getstr
+    local cstats = util.render([[
+        ${KEY_CSTATS}
+        ${SLOT_DECL} = (TValue *)luaH_getstr(${TABL}, ${KEY});
+    ]], {
+        KEY_CSTATS = key_cstats,
+        KEY = key,
+        SLOT_DECL = c_declaration(field),
+        TABL = tabl,
+    })
+    return cstats, field.name
+end
+
 --
 -- @tags
 --
@@ -602,10 +621,11 @@ local function check_tag(typ, slot, ctx)
     elseif tag == types.T.String   then tmpl = "ttisstring(${SLOT})"
     elseif tag == types.T.Function then tmpl = "ttisfunction(${SLOT})"
     elseif tag == types.T.Array    then tmpl = "ttistable(${SLOT})"
+    elseif tag == types.T.LRecord  then tmpl = "ttistable(${SLOT})"
     elseif tag == types.T.Record   then
         local mt_index = typ.type_decl._upvalue_index
         local mt_slot = upvalues_slot(mt_index, ctx)
-        return util.render(
+        out = util.render(
             [[(ttisfulluserdata(${SLOT}) && ${UDATA}->metatable == ${MT})]],
         {
             SLOT = slot,
@@ -613,9 +633,11 @@ local function check_tag(typ, slot, ctx)
             -- TODO: this should be types.T.LuaRecord()
             MT = get_slot(types.T.Array(types.T.Integer()), mt_slot),
         })
+        return out
     else error("impossible")
     end
-    return util.render(tmpl, {SLOT = slot})
+    local out = util.render(tmpl, {SLOT = slot})
+    return out
 end
 
 local function titan_type_tag(typ)
@@ -627,6 +649,7 @@ local function titan_type_tag(typ)
     elseif tag == types.T.String   then return "LUA_TSTRING"
     elseif tag == types.T.Function then return "LUA_TFUNCTION"
     elseif tag == types.T.Array    then return "LUA_TTABLE"
+    elseif tag == types.T.LRecord  then return "LUA_TTABLE"
     elseif tag == types.T.Record   then return "LUA_TUSERDATA"
     else error("impossible")
     end
@@ -1380,7 +1403,8 @@ declare_type("Lvalue", {
     CVar       = {"var", "varname"},
     ArraySlot  = {"var", "t_varname", "i_varname"},
     GlobalVar  = {"var", "upvalue_index"},
-    RecGcSlot  = {"var", "slot_address", "udata_pointer"},
+    RecGcSlot  = {"var", "slot_address", "rec_cvalue"},
+    LRecSlot   = {"var", "slot_address", "rec_cvalue"},
 })
 
 -- @returns C statements, C rvalue
@@ -1445,6 +1469,27 @@ local function generate_lvalue_read(lvalue, ctx)
         local cstats = util.render([[
             ${OUT_DECL} = ${GET_SLOT};
         ]], {
+            OUT_DECL = c_declaration(out),
+            GET_SLOT = get_slot(typ, lvalue.slot_address),
+        })
+        return cstats, out.name
+
+    elseif tag == coder.Lvalue.LRecSlot then
+        local typ = lvalue.var._type
+        local out = ctx:new_tvar(typ)
+        local cstats = util.render([[
+            if (TITAN_UNLIKELY(!${CHECK_TAG})) {
+                titan_runtime_lrecord_type_error(
+                    L, ${FIELD_NAME}, ${LINE}, ${EXPECTED_TAG}, rawtt(${SLOT})
+                );
+            }
+            ${OUT_DECL} = ${GET_SLOT};
+        ]], {
+            CHECK_TAG = check_tag(typ, lvalue.slot_address, ctx),
+            LINE = lvalue.var.loc.line,
+            FIELD_NAME = c_string(lvalue.var.name),
+            EXPECTED_TAG = titan_type_tag(typ),
+            SLOT = lvalue.slot_address,
             OUT_DECL = c_declaration(out),
             GET_SLOT = get_slot(typ, lvalue.slot_address),
         })
@@ -1523,9 +1568,30 @@ local function generate_lvalue_write(lvalue, exp_cvalue, ctx)
             SLOT_DECL = c_declaration(slot),
             SLOT_VALUE = lvalue.slot_address,
             SET_SLOT = set_heap_slot(
-                typ, slot.name, exp_cvalue, lvalue.udata_pointer),
+                typ, slot.name, exp_cvalue, lvalue.rec_cvalue),
         })
         return out
+
+    elseif tag == coder.Lvalue.LRecSlot then
+        local typ = lvalue.var._type
+        local out = util.render([[
+            if (TITAN_UNLIKELY(!${CHECK_TAG})) {
+                titan_runtime_lrecord_type_error(
+                    L, ${FIELD_NAME}, ${LINE}, ${EXPECTED_TAG}, rawtt(${SLOT})
+                );
+            }
+            ${SET_SLOT}
+        ]], {
+            CHECK_TAG = check_tag(typ, lvalue.slot_address, ctx),
+            LINE = lvalue.var.loc.line,
+            FIELD_NAME = c_string(lvalue.var.name),
+            EXPECTED_TAG = titan_type_tag(typ),
+            SLOT = lvalue.slot_address,
+            SET_SLOT = set_heap_slot(
+                typ, lvalue.slot_address, exp_cvalue, lvalue.rec_cvalue),
+        })
+        return out
+
 
     else
         error("impossible")
@@ -1843,13 +1909,20 @@ generate_var = function(var, ctx)
         return cstats, coder.Lvalue.ArraySlot(var, t_cvalue, k_cvalue)
 
     elseif tag == ast.Var.Dot then
-        local tl_node = var.exp._type.type_decl
-        local cstats, udata = generate_exp(var.exp)
-        local slot, typ = tl_node._rec:field_slot(udata, var.name)
-        if types.is_gc(typ) then
-            return cstats, coder.Lvalue.RecGcSlot(var, slot, udata)
+        local rec_type = var.exp._type
+        local rec_cstats, rec_cvalue = generate_exp(var.exp, ctx)
+        if rec_type._tag == types.T.LRecord then
+            local slot_cstats, slot = table_getstr(rec_cvalue, var.name, ctx)
+            local cstats = rec_cstats .. "\n" .. slot_cstats
+            return cstats, coder.Lvalue.LRecSlot(var, slot, rec_cvalue)
         else
-            return cstats, coder.Lvalue.CVar(var, slot)
+            local tl_node = rec_type.type_decl
+            local slot, typ = tl_node._rec:field_slot(rec_cvalue, var.name)
+            if types.is_gc(typ) then
+                return rec_cstats, coder.Lvalue.RecGcSlot(var, slot, rec_cvalue)
+            else
+                return rec_cstats, coder.Lvalue.CVar(var, slot)
+            end
         end
 
     else
@@ -2303,6 +2376,30 @@ generate_exp = function(exp, ctx)
             })
 
             return cstats, tbl.name
+
+        elseif exp._type._tag == types.T.LRecord then
+            local body = {}
+            table.insert(body, gc_cond_gc(ctx))
+
+            local tbl = ctx:new_tvar(exp._type)
+            table.insert(body, util.render([[
+                ${TBL_DECL} = luaH_new(L);
+                luaH_resize(L, ${TBL}, 0, ${N});
+            ]], {
+                TBL_DECL = c_declaration(tbl),
+                TBL = tbl.name,
+                N = #exp.fields,
+            }))
+
+            for _, field in ipairs(exp.fields) do
+                local field_cstats, field_cvalue = generate_exp(field.exp, ctx)
+                local set_field = table_set_new_field(tbl.name, field.name,
+                        field.exp._type, field_cvalue, ctx)
+                table.insert(body, field_cstats)
+                table.insert(body, set_field)
+            end
+
+            return table.concat(body, "\n"), tbl.name
 
         elseif exp._type._tag == types.T.Record then
             local body = {}

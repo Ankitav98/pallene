@@ -46,6 +46,10 @@ void titan_runtime_record_type_error(
     lua_State *L, const char *key, int expected_tag, int received_tag)
     TITAN_NORETURN;
 
+void titan_runtime_lrecord_type_error(
+    lua_State *L, const char *key, int line, int expected_tag, int received_tag)
+    TITAN_NORETURN;
+
 TString *titan_string_concatN(
     lua_State *L, size_t n, TString **ss);
 
