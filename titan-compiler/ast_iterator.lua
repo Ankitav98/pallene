@@ -42,6 +42,12 @@ function ast_iterator:Type(typ, ...)
             typ.rettypes[i] = self:Type(typ.rettypes[i], ...) or typ.rettypes[i]
         end
 
+    elseif tag == ast.Type.LuaRecord then
+        for i = 1, #typ.field_decls do
+            typ.field_decls[i] = self:Decl(typ.field_decls[i], ...) or
+                    typ.field_decls[i]
+        end
+
     else
         error("impossible")
     end

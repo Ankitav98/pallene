@@ -93,6 +93,19 @@ local function coerce_numeric_exp_to_float(exp)
     end
 end
 
+-- TODO: this function wouldn't be necessary if the Pallene record had a
+-- 'fields' field mapping names to its types.
+local function record_fields(typ)
+    local tag = typ._tag
+    if     tag == types.T.Record then
+        return typ.type_decl._field_types
+    elseif tag == types.T.LRecord then
+        return typ.fields
+    else
+        error("impossible")
+    end
+end
+
 --
 -- check
 --
@@ -163,6 +176,18 @@ check_type = function(typ, errors)
             table.insert(rettypes, check_type(rettype, errors))
         end
         return types.T.Function(ptypes, rettypes)
+
+    elseif tag == ast.Type.LuaRecord then
+        local fields = {}
+        for _, field in ipairs(typ.field_decls) do
+            if fields[field.name] then
+                type_error(errors, typ.loc, "repeated field '%s' in Lua record",
+                        field.name)
+            end
+            check_decl(field, errors)
+            fields[field.name] = field._type
+        end
+        return types.T.LRecord(fields)
 
     else
         error("impossible")
@@ -380,14 +405,15 @@ check_var = function(var, errors)
     elseif tag == ast.Var.Dot then
         check_exp(var.exp, errors, nil)
         local exptype = var.exp._type
-        if exptype._tag == types.T.Record then
-            local field_type = exptype.type_decl._field_types[var.name]
+        if exptype._tag == types.T.Record or
+           exptype._tag == types.T.LRecord then
+            local field_type = record_fields(exptype)[var.name]
             if field_type then
                 var._type = field_type
             else
                 type_error(errors, var.loc,
                     "field '%s' not found in record '%s'",
-                    var.name, exptype.type_decl.name)
+                    var.name, types.tostring(exptype))
                 var._type = types.T.Invalid()
             end
         else
@@ -484,7 +510,8 @@ check_exp = function(exp, errors, typehint)
                     end
                 end
 
-            elseif typehint._tag == types.T.Record then
+            elseif typehint._tag == types.T.Record or
+                   typehint._tag == types.T.LRecord then
                 local initialized_fields = {}
                 for _, field in ipairs(exp.fields) do
                     if field.name then
@@ -495,7 +522,7 @@ check_exp = function(exp, errors, typehint)
                         end
                         initialized_fields[field.name] = true
 
-                        local field_type = typehint.type_decl._field_types[field.name]
+                        local field_type = record_fields(typehint)[field.name]
                         if field_type then
                             check_exp(field.exp, errors, field_type)
                             checkmatch("record initializer",
@@ -503,7 +530,7 @@ check_exp = function(exp, errors, typehint)
                         else
                             type_error(errors, field.loc,
                                 "invalid field %s in record initializer for %s",
-                                field.name, typehint.type_decl.name)
+                                field.name, types.tostring(typehint))
                         end
                     else
                         type_error(errors, field.loc,
@@ -511,7 +538,7 @@ check_exp = function(exp, errors, typehint)
                     end
                 end
 
-                for field_name, _ in pairs(typehint.type_decl._field_types) do
+                for field_name, _ in pairs(record_fields(typehint)) do
                     if not initialized_fields[field_name] then
                         type_error(errors, exp.loc,
                             "required field %s is missing from initializer",
