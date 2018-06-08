@@ -6,6 +6,7 @@
 #include "lobject.h"
 #include "lstate.h"
 #include "lstring.h"
+#include "ltable.h"
 #include "ltm.h"
 
 #include <string.h>
@@ -170,5 +171,22 @@ TString *titan_string_concatN(lua_State *L, size_t n, TString **ss)
         char *buff = getstr(out_str);
         copy_strings_to_buffer(buff, n, ss);
         return out_str;
+    }
+}
+
+TValue *titan_lrecord_get_field(Table *t, TString *key, size_t *out_pos)
+{
+    size_t pos = lmod(key->hash, sizenode(t));
+    for (;;) {  /* check whether 'key' is somewhere in the chain */
+        Node *n = gnode(t, pos);
+        if (keyisshrstr(n) && eqshrstr(keystrval(n), key)) {
+            *out_pos = pos;
+            return gval(n);  /* that's it */
+        } else {
+            int nx = gnext(n);
+            if (nx == 0)
+                return (TValue *)luaH_emptyobject;  /* not found */
+            pos += nx;
+        }
     }
 }

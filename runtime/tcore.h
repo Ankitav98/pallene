@@ -53,4 +53,7 @@ void titan_runtime_lrecord_type_error(
 TString *titan_string_concatN(
     lua_State *L, size_t n, TString **ss);
 
+TValue *titan_lrecord_get_field(
+    Table *t, TString *key, size_t *out_pos);
+
 #endif

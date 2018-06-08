@@ -557,7 +557,7 @@ end
 -- @table
 --
 
-local function table_newkey(tabl, lit, ctx)
+local function table_newkey(tbl, lit, ctx)
     local key_cstats, key = literal_get(lit, ctx)
     local key_type = types.T.String()
     local key_slot = ctx:new_cvar("TValue")
@@ -567,44 +567,62 @@ local function table_newkey(tabl, lit, ctx)
         ${KEY_CSTATS}
         ${KEY_SLOT_DECL};
         ${SET_KEY_SLOT}
-        ${SLOT_DECL} = luaH_newkey(L, ${TABL}, ${KEY_SLOT_ADDR});
+        ${SLOT_DECL} = luaH_newkey(L, ${TBL}, ${KEY_SLOT_ADDR});
     ]], {
         KEY_CSTATS = key_cstats,
         KEY_SLOT_DECL = c_declaration(key_slot),
         KEY_SLOT_ADDR = key_slot_addr,
         SET_KEY_SLOT = set_stack_slot(key_type, key_slot_addr, key),
         SLOT_DECL = c_declaration(field),
-        TABL = tabl,
+        TBL = tbl,
     })
     return cstats, field.name
 end
 
-local function table_set_new_field(tabl, lit, typ, cvalue, ctx)
-    local field_cstats, field = table_newkey(tabl, lit, ctx)
+local function table_set_new_field(tbl, lit, typ, cvalue, ctx)
+    local field_cstats, field = table_newkey(tbl, lit, ctx)
     local out = util.render([[
         ${FIELD_CSTATS}
         ${SET_SLOT}
     ]], {
         FIELD_CSTATS = field_cstats,
-        SET_SLOT = set_heap_slot(typ, field, cvalue, tabl),
+        SET_SLOT = set_heap_slot(typ, field, cvalue, tbl),
     })
     return out
 end
 
-local function table_getstr(tabl, lit, ctx)
+local function table_get_field(tbl, lit, ctx)
     local key_cstats, key = literal_get(lit, ctx)
-    local field = ctx:new_cvar("TValue *")
-    -- TODO: use something more efficient then luaH_getstr
+    local pos = ctx:new_cvar("static size_t")
+    local node = ctx:new_cvar("Node *")
+    local slot = ctx:new_cvar("TValue *")
     local cstats = util.render([[
         ${KEY_CSTATS}
-        ${SLOT_DECL} = (TValue *)luaH_getstr(${TABL}, ${KEY});
+        ${POS_DECL} = 0;
+        ${NODE_DECL};
+        ${SLOT_DECL};
+        if (TITAN_LIKELY(
+                ${POS} < sizenode(${TBL}) &&
+                (${NODE} = gnode(${TBL}, ${POS}),
+                 (keyisshrstr(${NODE}) &&
+                  eqshrstr(keystrval(${NODE}), ${KEY}))))
+        ){
+            ${SLOT} = gval(${NODE});
+        } else {
+            ${SLOT} = titan_lrecord_get_field(${TBL}, ${KEY}, &${POS});
+        }
     ]], {
-        KEY_CSTATS = key_cstats,
         KEY = key,
-        SLOT_DECL = c_declaration(field),
-        TABL = tabl,
+        KEY_CSTATS = key_cstats,
+        NODE = node.name,
+        NODE_DECL = c_declaration(node),
+        POS = pos.name,
+        POS_DECL = c_declaration(pos),
+        SLOT = slot.name,
+        SLOT_DECL = c_declaration(slot),
+        TBL = tbl,
     })
-    return cstats, field.name
+    return cstats, slot.name
 end
 
 --
@@ -1912,7 +1930,7 @@ generate_var = function(var, ctx)
         local rec_type = var.exp._type
         local rec_cstats, rec_cvalue = generate_exp(var.exp, ctx)
         if rec_type._tag == types.T.LRecord then
-            local slot_cstats, slot = table_getstr(rec_cvalue, var.name, ctx)
+            local slot_cstats, slot = table_get_field(rec_cvalue, var.name, ctx)
             local cstats = rec_cstats .. "\n" .. slot_cstats
             return cstats, coder.Lvalue.LRecSlot(var, slot, rec_cvalue)
         else
