@@ -1,0 +1,9 @@
+record Foo
+    field32: float
+end
+
+function new(x: float): Foo
+    return {
+        field32 = x,
+    }
+end

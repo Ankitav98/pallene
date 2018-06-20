@@ -1,0 +1,7 @@
+function new(v: float): {v: float}
+    return { v = v }
+end
+
+function v(b: {v: float}): float
+    return b.v
+end

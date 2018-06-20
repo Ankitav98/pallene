@@ -1,0 +1,31 @@
+record Complex re: float; im: float end
+
+function new(x: float, y: float): Complex
+    return { re = x, im = y }
+end
+
+function clone(x: Complex): Complex
+    return new(x.re, x.im)
+end
+
+function conj(x: Complex): Complex
+    return new(x.re, -x.im)
+end
+
+function add(x: Complex, y: Complex): Complex
+    return new(x.re + y.re, x.im + y.im)
+end
+
+function mul(x: Complex, y: Complex): Complex
+    return new(x.re * y.re - x.im * y.im, x.re * y.im + x.im * y.re)
+end
+
+function norm2(x: Complex): float
+    local n = mul(x, conj(x))
+    return n.re
+end
+
+function abs(x: Complex): float
+--    return math.sqrt(norm2(x))
+    return norm2(x)
+end

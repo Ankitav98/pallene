@@ -1,0 +1,71 @@
+record Foo
+    field01: float
+    field02: float
+    field03: float
+    field04: float
+    field05: float
+    field06: float
+    field07: float
+    field08: float
+    field09: float
+    field10: float
+    field11: float
+    field12: float
+    field13: float
+    field14: float
+    field15: float
+    field16: float
+    field17: float
+    field18: float
+    field19: float
+    field20: float
+    field21: float
+    field22: float
+    field23: float
+    field24: float
+    field25: float
+    field26: float
+    field27: float
+    field28: float
+    field29: float
+    field30: float
+    field31: float
+    field32: float
+end
+
+function new(x: float): Foo
+    return {
+        field01 = x,
+        field02 = x,
+        field03 = x,
+        field04 = x,
+        field05 = x,
+        field06 = x,
+        field07 = x,
+        field08 = x,
+        field09 = x,
+        field10 = x,
+        field11 = x,
+        field12 = x,
+        field13 = x,
+        field14 = x,
+        field15 = x,
+        field16 = x,
+        field17 = x,
+        field18 = x,
+        field19 = x,
+        field20 = x,
+        field21 = x,
+        field22 = x,
+        field23 = x,
+        field24 = x,
+        field25 = x,
+        field26 = x,
+        field27 = x,
+        field28 = x,
+        field29 = x,
+        field30 = x,
+        field31 = x,
+        field32 = x,
+    }
+end

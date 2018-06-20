@@ -1,0 +1,11 @@
+record Box
+    v: float
+end
+
+function new(v: float): Box
+    return { v = v }
+end
+
+function v(b: Box): float
+    return b.v
+end

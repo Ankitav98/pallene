@@ -1,0 +1,3 @@
+function new(x: float, y: float): {x: float, y: float}
+    return { x = x, y = y }
+end
