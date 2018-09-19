@@ -381,55 +381,16 @@ end
 local function gc_save_vars(ctx)
     local first, last, n = ctx:begin_save()
 
-    -- Avoid warnings
-    if n == 0 then
-        return ""
-    end
-
-    local parts = {}
-
-    local top = ctx:new_cvar("StackValue*")
-    table.insert(parts, util.render([[
-        ${TOP_DECL} = L->top;
-    ]], {
-        TOP_DECL = c_declaration(top)
-    }))
-
-    for i = first, last do
-        local tvar = ctx.live_vars[i]
-        local slot = util.render("s2v($TOP)", { TOP = top.name })
-        table.insert(parts, util.render([[
-            ${SET_SLOT} ${TOP}++;
-        ]], {
-            SET_SLOT = set_stack_slot(tvar.typ, slot, tvar.cvar.name),
-            TOP = top.name,
-        }))
-    end
-
-    table.insert(parts, util.render([[
-        L->top = ${TOP};
-    ]], {
-        TOP = top.name
-    }))
-
-    return table.concat(parts, "\n")
+    -- No GC this time!
+    return ""
 end
 
 -- Release variables saved by gc_save_vars
 local function gc_release_vars(ctx)
     local _, _, n = ctx:end_save()
 
-     -- Avoid warnings
-    if n == 0 then
-        return ""
-    end
-
-    local out = util.render([[
-        L->top -= ${NSLOTS};
-    ]], {
-        NSLOTS = c_integer(n)
-    })
-    return out
+    -- No GC this time!
+    return ""
 end
 
 -- Insert a call to luaC_condgc in the program. This invokes the garbage
