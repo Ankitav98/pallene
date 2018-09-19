@@ -1063,6 +1063,9 @@ local function generate_luaopen(prog, modname)
 
     local body = {}
 
+    table.insert(body, "/* Disable the GC (for some testing) */")
+    table.insert(body, "lua_gc(L, LUA_GCSTOP);");
+
     table.insert(body, "/* Allocate upvalue table */")
     table.insert(body, "/* ---------------------- */")
     table.insert(body, upvalues_create_table(#prog._upvalues, ctx))
