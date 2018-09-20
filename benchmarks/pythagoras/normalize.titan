@@ -1,0 +1,29 @@
+function istriple(a:integer, b:integer, c:integer): boolean
+    return a*a + b*b == c*c
+end
+
+function pyth(N: integer): {{integer}}
+    local nsol: integer = 0
+    local xs: {integer} = {}
+    local ys: {integer} = {}
+    local zs: {integer} = {}
+
+    for x = 1, N do
+        for y = 1, N do
+            for z = 1, N do
+                if istriple(x,y,z) then
+                    nsol = nsol + 1
+                    xs[nsol] = x
+                    ys[nsol] = y
+                    zs[nsol] = z
+                end
+            end
+        end
+    end
+
+    local out: {{integer}} = {}
+    out[1] = xs
+    out[2] = ys
+    out[3] = zs
+    return out
+end
